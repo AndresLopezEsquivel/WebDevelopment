@@ -3,8 +3,9 @@ import { stat } from 'node:fs/promises';
 import { join, normalize, extname, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// public/ lives next to server.js, one level up from this routes/ folder.
-const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+// dist/ (the Vite build output) lives next to server.js, one level up from this
+// routes/ folder. Run `npm run build` before `npm start` so it exists.
+const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',

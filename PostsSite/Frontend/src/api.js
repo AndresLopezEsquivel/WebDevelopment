@@ -1,5 +1,5 @@
-// The UI is served by the Frontend proxy (port 8000), so the API is same-origin
-// and a relative base works.
+// The UI is served same-origin by the proxy (Vite in dev, the Node server in
+// prod), so a relative base works and /api/posts is forwarded to the backend.
 const API_BASE = '';
 
 export async function getPosts() {

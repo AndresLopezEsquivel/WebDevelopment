@@ -5,12 +5,20 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "node server.js"
   },
   "author": "Andrew",
   "license": "ISC",
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@vitejs/plugin-react": "^4.3.4",
+    "nodemon": "^3.1.14",
+    "vite": "^6.0.0"
   }
 }

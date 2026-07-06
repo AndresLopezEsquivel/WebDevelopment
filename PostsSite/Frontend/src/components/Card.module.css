@@ -1,0 +1,111 @@
+.card {
+  /* Don't let a card split across two columns. */
+  break-inside: avoid;
+  /* column-gap only spaces columns horizontally; this is the vertical gap. */
+  margin-bottom: 10px;
+
+  /* grid */
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+
+  /* Sober, minimalist surface: one quiet border, soft corners, plain white. */
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #ffffff;
+  overflow: hidden; /* keep the header background within the rounded corners */
+}
+
+.cardContent {
+  /* Collapsed: cap the content height and clip the overflow. */
+  overflow: hidden;
+  max-height: 220px;
+
+  /* Comfortable, readable body text. */
+  position: relative;
+  padding: 14px 16px;
+  color: #374151;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/*
+ * Collapsed "fade-out" overlay: a soft gradient at the bottom of the content
+ * that goes from transparent to solid white, hinting there's more to read.
+ * Scoped to collapsed cards only — when `.expanded` is applied the `:not()`
+ * no longer matches and the fade disappears. `.card-content` is
+ * `position: relative` so this absolute overlay is measured from its box.
+ */
+.card:not(.expanded) .cardContent::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
+}
+
+.card.expanded .cardContent {
+  /* Expanded: lift the cap so the card grows to fit its content. */
+  overflow: visible;
+  max-height: none;
+}
+
+.cardHeader {
+  /* Flexbox */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  /* Padding */
+  padding: 12px 16px;
+
+  /* Quiet separator from the body, subtle tint. */
+  background-color: #f9fafb;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.cardHeaderAvatar {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+
+  /* Border */
+  border-radius: 50%;
+
+  /* Background image (served from Vite's public/ dir) */
+  background-image: url("/assets/images/kid-reading.png");
+  background-size: cover;
+  background-position: center;
+}
+
+.cardHeaderInfo p:first-child {
+  /* Title */
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.3;
+}
+
+.cardHeaderInfo p:last-child {
+  /* Author */
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.cardResize {
+  padding: 10px 16px;
+  border-top: 1px solid #f0f1f3;
+  color: #6b7280;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.cardResize:hover {
+  color: #111827;
+}

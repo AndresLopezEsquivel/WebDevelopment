@@ -1,0 +1,6 @@
+.posts {
+  /* Masonry via CSS multi-column: fit as many ~300px columns as the
+     viewport allows, and let cards pack tightly with independent heights. */
+  column-width: 300px;
+  column-gap: 10px;
+}
