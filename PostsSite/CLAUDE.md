@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-PostsSite is a small learning project: a posts/blog feed built with **plain Node.js (`node:http`) and no web framework**, vanilla browser JS, and CSS. It is split into two independent Node services that talk to each other over HTTP.
+PostsSite is a small learning project: a posts/blog feed with a **plain Node.js (`node:http`) backend and no web framework**, and a **React (Vite) frontend**. It is split into two independent Node services that talk to each other over HTTP.
 
 ## Architecture
 
@@ -17,24 +17,28 @@ Two separate npm packages, each with its own `package.json` and run independentl
   - `db/init.js` `initDb()` runs `CREATE TABLE IF NOT EXISTS posts (...)` then seeds the table from `data/posts.json` **only when it is empty** (the seed rows carry no `id` — the `SERIAL` column assigns them in array order, keeping the sequence in sync). It is idempotent, so restarts don't re-seed. `data/posts.json` is now just seed data, not the live store.
   - `sendResponse(res, data, statusCode, contentType)` is the shared response helper used everywhere.
 
-- **`Frontend/`** — listens on **port 8000**, serves the UI and acts as a **reverse proxy** to the backend (same origin for both).
+- **`Frontend/`** — a **Vite React app** plus a Node **static server + reverse proxy** on **port 8000** (same origin for both), so the UI and data API share one origin. The migration deliberately kept this proxy architecture (see "Does the architecture change?" below).
   - `server.js` maps `GET /api/posts` and `POST /api/posts` to `routes/proxy.js` (the GET handler is exported as `getPost`, singular), which forwards to the backend at `localhost:3000/`. Backend responses are streamed straight back with `.pipe()`. Backend connection failures return **502**; bad client requests return **400**.
-  - Every other `GET` falls through to `routes/static.js` (`serveStatic`), which serves files from `public/`: `/` → `index.html`, a small extension→content-type map (note `.js` → `text/javascript` so ES modules load), a path-traversal guard (→ 403), and 404 for missing files. Non-GET requests to unknown URLs are 404.
-  - `public/` holds the static UI (`index.html`, `styles/`, `app/`).
+  - Every other `GET` falls through to `routes/static.js` (`serveStatic`), which serves the **Vite build output from `dist/`** (run `npm run build` first): `/` → `index.html`, a small extension→content-type map (note `.js` → `text/javascript`), a path-traversal guard (→ 403), and 404 for missing files. Non-GET requests to unknown URLs are 404. There is no SPA fallback (single page, no client-side router yet).
+  - `Frontend/` itself is the Vite project root: root `index.html` (Vite entry), `src/` (React), `public/` (static assets copied verbatim, e.g. the avatar image), `dist/` (build output, gitignored). `server.js` and `routes/` are the **production** static+proxy server.
 
-The two services communicate only via HTTP. The UI and the data API share one origin (8000); the proxy forwards data calls to the backend on a separate port (3000). Because everything is same-origin, **no CORS headers are needed**.
+The two services communicate only via HTTP. In **prod**, the Node server (8000) serves `dist/` and proxies `/api/posts` → backend (3000). In **dev**, Vite's dev server (port 5173) runs the app with HMR and its own `server.proxy` forwards `/api/posts` → backend, rewritten to `/` (`vite.config.js`) — mirroring `routes/proxy.js`, so the Node server is not used in dev. Either way everything is same-origin, so **no CORS headers are needed**.
 
-### Browser app (`public/app/`)
+### React app (`Frontend/src/`)
 
-Vanilla ES modules, loaded via `<script type="module" src="./app/main.js">` in `index.html`:
+Function components + hooks (JSX, **no TypeScript**), entry `src/main.jsx` → `<App/>`:
 
-- `api.js` — `getPosts()` and `createPost(post)`. Both `fetch` `API_BASE + /api/posts` and throw on non-2xx. `API_BASE` is `''` (relative) because the UI is served same-origin by the proxy on port 8000.
-- `dom.js` — all DOM logic: `createCard` (internal) builds card markup with `textContent` (no `innerHTML`, avoids markup injection); `renderPosts` replaces the `.posts` container's children; `prependPost` adds one card on top; `initCardResize` is delegated click handling on `.posts` for expand/collapse; `initPostForm(onSubmit)` wires the create-post form.
-- `main.js` — entry point: calls `initCardResize`, wires `initPostForm` to `createPost` + `prependPost`, then `getPosts` + `renderPosts`.
+- `api.js` — `getPosts()` and `createPost(post)` (ported unchanged from the old vanilla UI). Both `fetch` `API_BASE + /api/posts` and throw on non-2xx. `API_BASE` is `''` (relative) — same-origin in both dev (Vite proxy) and prod (Node proxy).
+- `App.jsx` — owns `posts` state; `useEffect` loads via `getPosts()` on mount; renders `<PostForm>` + `<PostList>`. On create it calls `createPost()` and **prepends** the saved post (server-assigned `id`) so the newest shows on top.
+- `components/PostForm.jsx` — controlled create-post form (title/author/content); disables the submit button while awaiting and clears on success.
+- `components/PostList.jsx` — the `.posts` masonry container; maps posts to `<PostCard key={post.id}>`.
+- `components/PostCard.jsx` — card markup with a local `expanded` state (`useState`) driving Show More/Show Less; uses React `{...}` text nodes (no `innerHTML`).
 
-Posts render in stored order (oldest first); newly created posts are prepended (newest on top).
+Styling is **scoped CSS Modules** per component (`*.module.css`, e.g. `Card.module.css`), plus a global `src/index.css` (reset + body font). Posts render in stored order (oldest first); newly created posts are prepended (newest on top). Cards use a CSS multi-column masonry layout.
 
-Cards use a CSS multi-column masonry layout (`public/styles/card.css`).
+### Does the architecture change? — No (by design)
+
+The same-origin static-server + reverse-proxy model is exactly what an SPA wants, so it stays. Deployment (an EC2 instance) is unchanged except it gains a `npm run build` step before `npm start`. A future task is to optionally replace the Node static+proxy server with **Nginx** (serve `dist/`, `proxy_pass /api` → backend).
 
 ## Commands
 
@@ -46,13 +50,15 @@ cd Server && npm install
 npm run dev      # nodemon --env-file=.env, auto-reload
 npm start        # node --env-file=.env server.js
 
-# Frontend: UI + proxy (port 8000) — start the backend first
+# Frontend — start the backend first
 cd Frontend && npm install
-npm run dev      # nodemon
-npm start
+npm run dev      # Vite dev server + HMR on port 5173 (proxies /api/posts → backend)
+# — or, to run the production build the way it deploys: —
+npm run build    # Vite build → dist/
+npm start        # node server.js — serves dist/ + proxies on port 8000
 ```
 
-Start both, then open **http://localhost:8000** — the Frontend serves the UI and proxies data calls to the backend, so those two processes (plus PostgreSQL) are all that's needed. There is currently **no test suite, linter, or build step** — `node` runs the source directly (`"type": "module"`, native ESM).
+For day-to-day UI work, run the backend + `npm run dev` and open Vite's URL (**http://localhost:5173**); Vite proxies data calls to the backend. To exercise the deployed setup, `npm run build` then `npm start` and open **http://localhost:8000** (the Node server serves `dist/` and proxies). The backend has **no test suite or linter** and `node` runs its source directly (`"type": "module"`, native ESM); the Frontend now has a Vite **build step** (JSX → bundled assets).
 
 ### Manual API checks
 
@@ -70,6 +76,6 @@ curl -X POST localhost:8000/api/posts -H 'Content-Type: application/json' \
 
 ## Conventions
 
-- ESM only (`import`/`export`, `node:` prefixed builtins). No transpilation.
-- `pg` is the only runtime dependency (Server), plus `nodemon` as a devDependency in each service. Config comes from env vars (`.env`, loaded via `--env-file` — no `dotenv`). Prefer keeping it dependency-light unless there's a clear reason.
-- Both services log every request as `[ISO timestamp] METHOD url`.
+- ESM only (`import`/`export`, `node:` prefixed builtins). The **Server** has no transpilation (`node` runs the source). The **Frontend** is a Vite React app (JSX, transpiled/bundled by Vite); its Node static+proxy server (`server.js`, `routes/`) is plain ESM with no build.
+- Server: `pg` is the only runtime dependency, plus `nodemon` (dev); config comes from env vars (`.env`, loaded via `--env-file` — no `dotenv`). Keep the backend dependency-light. Frontend deps are `react`/`react-dom` (runtime) and `vite`/`@vitejs/plugin-react` (dev), as expected for a Vite app.
+- Both Node services log every request as `[ISO timestamp] METHOD url`.
